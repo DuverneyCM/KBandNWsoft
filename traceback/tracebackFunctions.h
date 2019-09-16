@@ -9,8 +9,9 @@ int getLineSize(FILE *inputFile, int dimFile, int posFirstEnter, int dimSearchWi
 int getLastLineSize(int dimFile, int posFirstEnter, int dimLine);
 int getDimSeq(int dimFile, int posFirstEnter, int dimLine);
 int getNoArrowRows(int dimFile, int noPEs);
-int getLastDirection(FILE *inputFile, int dimFile, int noPEs, int *arrowRow);
-int getPosLastArrow(FILE *inputFile, int dimFile, int noPEs, int *arrowRow);
+int getArrowRow(FILE *inputFile, int indexRow, int noPEs, int *arrowRow);
+int getLastDirection(int noPEs, int *arrowRow);
+int getPosLastArrow(int noPEs, int *arrowRow);
 int getArrow(int noPEs, int *arrowRow, int posArrow, int dirArrow);
 
 void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posSeqA, int* posSeqB, int* gapA, int* gapB);
@@ -83,39 +84,45 @@ int getNoArrowRows(int dimFile, int noPEs) {
 	return dimFile / (2*noPEs/8);
 }
 
-int getLastDirection(FILE *inputFile, int dimFile, int noPEs, int *arrowRow) {
+int getArrowRow(FILE *inputFile, int indexRow, int noPEs, int *arrowRow){
+	int isHV = 0, dirHV = 0;
+	int noBytesByRow = 2*noPEs/8, dimUInt=sizeof(unsigned int);
+	int noIntRegsByRow = noBytesByRow/dimUInt;
+	int indexRowInBytes = indexRow*noBytesByRow;
+	if (indexRowInBytes % (2*noPEs/8) == 0){
+		fseek(inputFile, indexRow*noBytesByRow, SEEK_SET);
+		fread(arrowRow,4,noIntRegsByRow,inputFile);
+		return indexRow;
+	}
+	return 0;
+}
+
+int getLastDirection(int noPEs, int *arrowRow) {
 	const int dirHcode = 1431655765, dirVcode = 2863311530;
 	int sizeValid = 0, isRead = 0, isHV = 0, dirHV = 0;
 	int noBytesByRow = 2*noPEs/8, dimUInt=sizeof(unsigned int);
 	int noIntRegsByRow = noBytesByRow/dimUInt;
-	if (dimFile % (2*noPEs/8) == 0)
-		sizeValid = 1;
-	if (sizeValid==1 && dimFile>noBytesByRow){
-		fseek(inputFile, dimFile-1*noBytesByRow, SEEK_SET);
-		fread(arrowRow,4,noIntRegsByRow,inputFile);
-		for (int i=0;i<noIntRegsByRow;i++){
-			if (arrowRow[i] == dirHcode) isHV++;
-			if (arrowRow[i] == dirVcode) isHV--;
-		}
-		isRead = 1;
+
+	for (int i=0;i<noIntRegsByRow;i++){
+		if (arrowRow[i] == dirHcode) isHV++;
+		if (arrowRow[i] == dirVcode) isHV--;
 	}
-	if (sizeValid==1 && isRead==1){
-		if (isHV == noIntRegsByRow) dirHV = 1;		//H
-		if (isHV == -noIntRegsByRow) dirHV = -1;	//V
-	}
-	if (dirHV == 0) return 0;
-	else return dirHV;
+	if (isHV == noIntRegsByRow) dirHV = 1;		//H
+	if (isHV == -noIntRegsByRow) dirHV = -1;	//V
+	
+	if (dirHV == 0) 
+		return 0;
+	else
+		return dirHV;
 	
 }
 
-int getPosLastArrow(FILE *inputFile, int dimFile, int noPEs, int *arrowRow) {
+int getPosLastArrow(int noPEs, int *arrowRow) {
 	int i=0, j=0, dimUInt=sizeof(unsigned int), noBitsUInt=8*dimUInt;
 	int noBytesByRow = 2*noPEs/8, noUIntRegsByRow = noBytesByRow/dimUInt;
 	int noIntRegsByRow = noBytesByRow/dimUInt;
 	int dupla=0, noArrows=0, posLastArrow=-1;
 	//ARROW = 0 @ ERROR, 1 @ UP, 2 @ LEFT, 3 @ DIAGONAL
-	fseek(inputFile, -2*noBytesByRow, SEEK_CUR);
-	fread(arrowRow,dimUInt,noIntRegsByRow,inputFile);
 	for (i=0; i<noUIntRegsByRow; i++){
 		for (j=0; j<noBitsUInt/2; j++){
 			dupla = (arrowRow[i]>>2*j) & 3;
