@@ -1,7 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-//***   Declaration's Functions
+//***	Declaration of Defines
+#define dimPacket		512
+#define NoPacketFile	200
+#define dimPackSeq		10000000
+#define CLOCKS_BY_SEC	800000
+#define LEFT			2
+#define UP				1
+
+//***   Declaration of Functions
 int getFileSize(FILE *inputFile);
 int isFasta(FILE *inputFile);
 int getPosFirstEnter(FILE *inputFile, int dimFile, int dimSearchWindow);
@@ -9,7 +17,7 @@ int getLineSize(FILE *inputFile, int dimFile, int posFirstEnter, int dimSearchWi
 int getLastLineSize(int dimFile, int posFirstEnter, int dimLine);
 int getDimSeq(int dimFile, int posFirstEnter, int dimLine);
 int getNoArrowRows(int dimFile, int noPEs);
-int getArrowRow(FILE *inputFile, int indexRow, int noPEs, int *arrowRow);
+int getArrowRowFromFILE(FILE *inputFile, int indexRow, int noPEs, int *arrowRow);
 int getLastDirection(int noPEs, int *arrowRow);
 int getPosLastArrow(int noPEs, int *arrowRow);
 int getArrow(int noPEs, int *arrowRow, int posArrow, int dirArrow);
@@ -18,7 +26,7 @@ void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posS
 
 
 
-//***   Definition's Functions
+//***   Definition of Functions
 int getFileSize(FILE *inputFile) {
     int beginFile, endFile, dimFile;
     fseek(inputFile, 0, SEEK_SET);
@@ -84,7 +92,7 @@ int getNoArrowRows(int dimFile, int noPEs) {
 	return dimFile / (2*noPEs/8);
 }
 
-int getArrowRow(FILE *inputFile, int indexRow, int noPEs, int *arrowRow){
+int getArrowRowFromFILE(FILE *inputFile, int indexRow, int noPEs, int *arrowRow){
 	int isHV = 0, dirHV = 0;
 	int noBytesByRow = 2*noPEs/8, dimUInt=sizeof(unsigned int);
 	int noIntRegsByRow = noBytesByRow/dimUInt;
@@ -143,6 +151,38 @@ int getArrow(int noPEs, int *arrowRow, int posArrow, int dirArrow){
 	return ARROW;
 }
 
+void swap(int *x, int *y) {
+   int temp;
+   temp = *x;    /* save the value at address x */
+   *x = *y;      /* put y into x */
+   *y = temp;    /* put temp into y */
+   printf("temp = %d\n",temp);
+     return;
+}
+
+int getPacketSeq(FILE *inputFile, char *packetSeq, int *lastUnreadSym, int posFirstEnterFile){
+	int sizePacket = 2*dimPackSeq;
+	static char bufferPacketSeq[2*dimPackSeq];
+	//printf("sizePacket = %d\n",sizePacket);
+	int indexPacketSeq=0;
+	int indexStartReadPacket = *lastUnreadSym - sizePacket;
+	if (indexStartReadPacket < posFirstEnterFile){
+		indexStartReadPacket = posFirstEnterFile;
+		sizePacket = *lastUnreadSym - posFirstEnterFile;
+	}
+	fseek(inputFile, indexStartReadPacket, SEEK_SET);
+	fread(bufferPacketSeq,1,sizePacket,inputFile);
+	int indexPacketFile=sizePacket-1;
+	while (indexPacketSeq<dimPackSeq && indexPacketFile>0){
+		if (bufferPacketSeq[indexPacketFile] != '\n'){
+			packetSeq[indexPacketSeq] = bufferPacketSeq[indexPacketFile];
+			indexPacketSeq++;
+		}
+		indexPacketFile--;
+	}
+	*lastUnreadSym = *lastUnreadSym - sizePacket + indexPacketFile;
+	return indexPacketSeq;
+}
 
 
 void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posSeqA, int* posSeqB, int* gapA, int* gapB) {
@@ -224,6 +264,22 @@ void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posS
 			*gapA = 0;
 			*posSeqB = *posSeqB - 1;
 			*gapB = 0;
+		}
+	}
+}
+
+void updateSeqFile(int *cntSeq, int *cnt){
+	if (*cntSeq == 0 && *cnt != 0){
+		//printf("posSeqA**** = %d\n",posSeqA);
+		for (i=0; i<dimPackSeq; i++){
+			fwrite(&VfnewseqA[i], 1, 1, fnewseqA);
+		}
+	}else if (posSeqA == 0 && posSeqB == 0){
+		//////Antes o despues del siguiente bloque
+		if (gapA == 0) VfnewseqA[cntLocal] = VseqA[(posSeqA)%dimPackSeq];
+			else VfnewseqA[cntLocal] = '_';
+		for (i=0; i<=cntLocal; i++){
+			fwrite(&VfnewseqA[i], 1, 1, fnewseqA);
 		}
 	}
 }
