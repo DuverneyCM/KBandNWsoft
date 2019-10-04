@@ -6,6 +6,7 @@
 #define NoPacketFile	200
 #define dimPackSeq		10000000
 #define CLOCKS_BY_SEC	800000
+#define DIAG			3
 #define LEFT			2
 #define UP				1
 
@@ -20,9 +21,11 @@ int getNoArrowRows(int dimFile, int noPEs);
 int getArrowRowFromFILE(FILE *inputFile, int indexRow, int noPEs, int *arrowRow);
 int getLastDirection(int noPEs, int *arrowRow);
 int getPosLastArrow(int noPEs, int *arrowRow);
-int getArrow(int noPEs, int *arrowRow, int posArrow, int dirArrow);
 
-void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posSeqA, int* posSeqB, int* gapA, int* gapB);
+
+int getArrow(int noPEs, int *arrowRow, int *posArrow, int *dirArrow, int *currentArrowRow, int posSeqA, int posSeqB, char tempSymA, char tempSymB, int lastARROW);
+	int filterLastArrow(int posSeqA, int posSeqB, int ARROW, char lastSymA, char lastSymB, int lastArrow);
+	void decoArrow(int* posArrow, int* arrowRow, int* dirHV, int ARROW);
 
 
 
@@ -122,7 +125,6 @@ int getLastDirection(int noPEs, int *arrowRow) {
 		return 0;
 	else
 		return dirHV;
-	
 }
 
 int getPosLastArrow(int noPEs, int *arrowRow) {
@@ -141,14 +143,6 @@ int getPosLastArrow(int noPEs, int *arrowRow) {
 		}
 	}
 	return posLastArrow;
-}
-
-int getArrow(int noPEs, int *arrowRow, int posArrow, int dirArrow){
-	int dimUInt=sizeof(unsigned int);
-	int posInRow = posArrow / (8*dimUInt);
-	int posInReg = (posArrow % (8*dimUInt));
-	int ARROW = (arrowRow[posInRow]>>posInReg) & 3;
-	return ARROW;
 }
 
 void swap(int *x, int *y) {
@@ -185,89 +179,101 @@ int getPacketSeq(FILE *inputFile, char *packetSeq, int *lastUnreadSym, int posFi
 }
 
 
-void decoArrow(int* offsetPos, int* offsetFila, int* dirHV, int ARROW, int* posSeqA, int* posSeqB, int* gapA, int* gapB) {
-	if (*dirHV == 1){ //V
-		if (ARROW == 0) {	//Error
-			*offsetFila = 0;
-			*offsetPos = 0;
-			printf("posSeqA** = %d\n",*posSeqA);
-			printf("posSeqB** = %d\n",*posSeqB);
-			if (*posSeqA != 0) {
-				*posSeqA = *posSeqA - 1;
-				*gapA = 0;
-			} else *gapA = 1;
-			if (*posSeqB != 0) {
-				*posSeqB = *posSeqB - 1;
-				*gapB = 0;
-			} else *gapB = 1;
-		}
-		else if (ARROW == 1) {	//Up
-			*offsetFila = 1;
-			*offsetPos = 0;
+//WHILE LOOP
+int getArrow(int noPEs, int *arrowRow, int *posArrow, int *dirArrow, int *currentArrowRow, int posSeqA, int posSeqB, char tempSymA, char tempSymB, int lastARROW){
+	int dimUInt=sizeof(unsigned int);
+	int posInRow = *posArrow / (8*dimUInt);
+	int posInReg = (*posArrow % (8*dimUInt));
+	int ARROW = (arrowRow[posInRow]>>posInReg) & 3;
+		//if (posSeqA<300) printf("%d",ARROW);
+	int filterARROW = filterLastArrow(posSeqA, posSeqB, ARROW, tempSymA, tempSymB, lastARROW);
+	decoArrow(posArrow, currentArrowRow, dirArrow, filterARROW);
+	return filterARROW;
+}
+
+int filterLastArrow(int posSeqA, int posSeqB, int ARROW, char lastSymA, char lastSymB, int lastArrow) {
+	if 		(posSeqA <= 0)	lastArrow = LEFT;
+	else if (posSeqB <= 0)	lastArrow = UP;
+	else if (lastSymA == lastSymB && lastArrow == DIAG)
+		lastArrow = DIAG;
+	else if (ARROW == 0)		{
+		if (lastSymA == lastSymB)
+			lastArrow = DIAG;
+		else
+			lastArrow = lastArrow;
+	}
+	else	lastArrow = ARROW;
+	return lastArrow;
+}
+
+void decoArrow(int* posArrow, int* posRow, int* dirHV, int ARROW) {
+	if (ARROW == 0) {	//Error
+		*posRow = *posRow;//*offsetFila = 0;
+		*posArrow = *posArrow;//*offsetPos = 0;
+		printf("error!!! ARROW = 0\n");
+	}
+	else if (*dirHV == 1){ //V
+		if (ARROW == UP) {	//Up
+			*posRow = *posRow - 1;//*offsetFila = 1;
+			*posArrow = *posArrow;//*offsetPos = 0;
 			*dirHV = -1;
-			*posSeqA = *posSeqA - 1;
-			*gapA = 0;
-			*gapB = 1;
 		}
-		else if (ARROW == 2) {	//Left
-			*offsetFila = 1;
-			*offsetPos = 2;
+		else if (ARROW == LEFT) {	//Left
+			*posRow = *posRow - 1;//*offsetFila = 1;
+			*posArrow = *posArrow +2;//*offsetPos = 2;
 			*dirHV = -1;
-			*posSeqB = *posSeqB - 1;
-			*gapB = 0;
-			*gapA = 1;
 		}
-		else if (ARROW == 3) {	//Diagonal
-			*offsetFila = 2;
-			*offsetPos = 0;
-			*posSeqA = *posSeqA - 1;
-			*gapA = 0;
-			*posSeqB = *posSeqB - 1;
-			*gapB = 0;
+		else if (ARROW == DIAG) {	//Diagonal
+			*posRow = *posRow - 2;//*offsetFila = 2;
+			*posArrow = *posArrow;//*offsetPos = 0;
+			*dirHV = *dirHV;
 		}
 	}
 	else if (*dirHV == -1){ //H
-		if (ARROW == 0) {	//Error
-			*offsetFila = 0;
-			*offsetPos = 0;
-			printf("posSeqA** = %d\n",*posSeqA);
-			printf("posSeqB** = %d\n",*posSeqB);
-			if (*posSeqA != 0) {
-				*posSeqA = *posSeqA - 1;
-				*gapA = 0;
-			} else *gapA = 1;
-			if (*posSeqB != 0) {
-				*posSeqB = *posSeqB - 1;
-				*gapB = 0;
-			} else *gapB = 1;
-		}
-		if (ARROW == 1) {	//Up
-			*offsetFila = 1;
-			*offsetPos = -2;
+		if (ARROW == UP) {	//Up
+			*posRow = *posRow - 1;
+			*posArrow = *posArrow - 2;//*offsetPos = -2;
 			*dirHV = 1;
-			*posSeqA = *posSeqA - 1;
-			*gapA = 0;
-			*gapB = 1;
 		}
-		if (ARROW == 2) {	//Left
-			*offsetFila = 1;
-			*offsetPos = 0;
+		else if (ARROW == LEFT) {	//Left
+			*posRow = *posRow - 1;//*offsetFila = 1;
+			*posArrow = *posArrow;//*offsetPos = 0;
 			*dirHV = 1;
-			*posSeqB = *posSeqB - 1;
-			*gapB = 0;
-			*gapA = 1;
 		}
-		if (ARROW == 3) {	//Diagonal
-			*offsetFila = 2;
-			*offsetPos = 0;
-			*posSeqA = *posSeqA - 1;
-			*gapA = 0;
-			*posSeqB = *posSeqB - 1;
-			*gapB = 0;
+		else if (ARROW == DIAG) {	//Diagonal
+			*posRow = *posRow - 2;//*offsetFila = 2;
+			*posArrow = *posArrow;//*offsetPos = 0;
+			*dirHV = *dirHV;
 		}
 	}
 }
 
+void GetAlignSymbols(int ARROW, char *symA, char *symB, char tempSymA, char tempSymB, int *posSeqA, int *posSeqB, int *posPacketA, int *posPacketB) {
+	if ( ARROW == DIAG || ARROW == UP ) { 
+		*symA = tempSymA;
+		*posSeqA = *posSeqA - 1; 
+		*posPacketA = *posPacketA - 1;
+	}
+	else *symA = '_';
+	if ( ARROW == DIAG || ARROW == LEFT ) { 
+		*symB = tempSymB;
+		*posSeqB = *posSeqB - 1; 
+		*posPacketB = *posPacketB - 1;
+	}
+	else *symB = '_';
+}
+
+void getSimilarityAndDistance(char symA, char symB, int *similarity, int *distance) {
+	if (symA == symB && symA != '_') {
+		*similarity = *similarity + 1;
+	}else {
+		*similarity = *similarity - 1;
+		*distance = *distance + 1;
+	}
+}
+
+
+/*
 void updateSeqFile(int *cntSeq, int *cnt){
 	if (*cntSeq == 0 && *cnt != 0){
 		//printf("posSeqA**** = %d\n",posSeqA);
@@ -283,3 +289,4 @@ void updateSeqFile(int *cntSeq, int *cnt){
 		}
 	}
 }
+*/

@@ -3,3 +3,13 @@ gcc -o traceback.o traceback.c
 ./traceback.o 1024 sequences-singleLine/NZ_KN849241.1.fa sequences-singleLine/NZ_LJXA01000025.1.fa arrows/arrowsHPS 1 seqAnew.txt seqBnew.txt
 
 ./fpga_fft 1024 sequences-singleLine/NM_001354943.1.fa sequences-singleLine/NM_001354944.1.fa arrows/arrowsHPS 0
+
+
+
+$port= new-Object System.IO.Ports.SerialPort COM4,115200,None,8,one
+
+scp fpga_fft root@192.168.27.254:~/duver/KBandNW
+scp -r sequences-singleLine root@192.168.27.254:~/duver/KBandNW
+scp tracebackhps root@192.168.27.254:~/duver/KBandNW
+
+scp root@192.168.27.254:~/duver/KBandNW/arrows/arrowsHPSp1.bin arrows

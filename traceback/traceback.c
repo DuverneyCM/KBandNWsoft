@@ -3,24 +3,14 @@
 #include <stdlib.h>
 #include "tracebackFunctions.h"
 
-#define dimPacket		512
-#define NoPacketFile	200
-#define NooRegs			64
-#define dimPackSeq		10000000
-#define dirHcode		1431655765 //"010101..."
-#define dirVcode		2863311530 //"101010..."
-#define CLOCKS_BY_SEC	800000
-
 int main(int argc, char *argv[]) {
+//	Declaration of variables
 	FILE *fseqA, *fseqB, *farrows;  //read, input files
 	FILE *fnewseqA, *fnewseqB;      //write, output files
 	int noPEs, noFile, noRegs, dimUInt;
-	int similitud = 0, distancia = 0, cntLocal = 0;
 	int i = 0, j = 0; 				//Indice de los registros empezando por el último
 	char arrowFILEname[32];
 	int searchWindow = 200;
-
-
 //	Read Parameters. argv[0]	name of the executable file
 	noPEs = atoi(argv[1]);				//Number of PEs. Usually 1024 PEs
 	fseqA =	fopen(argv[2],"r");			//Name and path of the Sequence A
@@ -32,33 +22,35 @@ int main(int argc, char *argv[]) {
 	
 	dimUInt = sizeof(unsigned int);
 	noRegs = 2*noPEs/(8*dimUInt);
-
-//	Get features of the SeqA
+//	Get features of the SeqA and SeqB
 	int dimFileSeqA = getFileSize(fseqA);
-	int	validFileA = isFasta(fseqA);
-	int posFirstEnterFileA = getPosFirstEnter(fseqA, dimFileSeqA, searchWindow);
-	int dimLineSeqA = getLineSize(fseqA, dimFileSeqA, posFirstEnterFileA, searchWindow);
-	int dimLastLineSeqA = getLastLineSize(dimFileSeqA, posFirstEnterFileA, dimLineSeqA);
-	int dimSeqA = getDimSeq(dimFileSeqA, posFirstEnterFileA, dimLineSeqA);
-		printf("dimFileSeqA = %d\n",dimFileSeqA);
-		printf("validFileA = %d\n",validFileA);
-		printf("posFirstEnterFileA = %d\n",posFirstEnterFileA);
-		printf("dimLineSeqA = %d\n",dimLineSeqA);
-		printf("dimLastLineSeqA = %d\n",dimLastLineSeqA);
-		printf("dimSeqA = %d\n",dimSeqA);
-//	Get features of the SeqB
 	int dimFileSeqB = getFileSize(fseqB);
+		//printf("dimFileSeq{A,B} = {%d,%d}\n",dimFileSeqA,dimFileSeqB);
+	int	validFileA = isFasta(fseqA);
 	int	validFileB = isFasta(fseqB);
+		//printf("validFile{A,B} = {%d,%d}\n",validFileA,validFileB);
+	int posFirstEnterFileA = getPosFirstEnter(fseqA, dimFileSeqA, searchWindow);
 	int posFirstEnterFileB = getPosFirstEnter(fseqB, dimFileSeqB, searchWindow);
+		//printf("posFirstEnterFile{A,B} = {%d,%d}\n",posFirstEnterFileA,posFirstEnterFileB);
+	int dimLineSeqA = getLineSize(fseqA, dimFileSeqA, posFirstEnterFileA, searchWindow);
 	int dimLineSeqB = getLineSize(fseqB, dimFileSeqB, posFirstEnterFileB, searchWindow);
+		//printf("dimLineSeq{A,B} = {%d,%d}\n",dimLineSeqA,dimLineSeqB);
+	int dimLastLineSeqA = getLastLineSize(dimFileSeqA, posFirstEnterFileA, dimLineSeqA);
 	int dimLastLineSeqB = getLastLineSize(dimFileSeqB, posFirstEnterFileB, dimLineSeqB);
+		//printf("dimLastLineSeq{A,B} = {%d,%d}\n",dimLastLineSeqA,dimLastLineSeqB);
+	int dimSeqA = getDimSeq(dimFileSeqA, posFirstEnterFileA, dimLineSeqA);
 	int dimSeqB = getDimSeq(dimFileSeqB, posFirstEnterFileB, dimLineSeqB);
-		printf("dimFileSeqB = %d\n",dimFileSeqB);
-		printf("validFileB = %d\n",validFileB);
-		printf("posFirstEnterFileB = %d\n",posFirstEnterFileB);
-		printf("dimLineSeqB = %d\n",dimLineSeqB);
-		printf("dimLastLineSeqB = %d\n",dimLastLineSeqB);
-		printf("dimSeqB = %d\n",dimSeqB);
+		//printf("dimSeq{A,B} = {%d,%d}\n",dimSeqA,dimSeqB);
+//	Read SeqA and SeqB by packets
+	static char vSeqA[dimPackSeq+1], vNewSeqA[dimPackSeq+1];
+	static char vSeqB[dimPackSeq+1], vNewSeqB[dimPackSeq+1];
+	int lastUnreadSymFileSeqA = dimFileSeqA;
+	int lastUnreadSymFileSeqB = dimFileSeqB;
+	int dimPacketSeqA = getPacketSeq(fseqA, vSeqA, &lastUnreadSymFileSeqA, posFirstEnterFileA);
+	int dimPacketSeqB = getPacketSeq(fseqB, vSeqB, &lastUnreadSymFileSeqB, posFirstEnterFileB);
+	//swap(&lastUnreadSymFileSeqA, &lastUnreadSymFileSeqB);
+	//printf("lastUnreadSymFileSeq{A,B} = {%d,%d}\n",lastUnreadSymFileSeqA, lastUnreadSymFileSeqB);
+	//printf("dimPacketSeq{A,B} = {%d,%d}\n",dimPacketSeqA,dimPacketSeqB);
 //	Get features of the Arrow files
 	int noBytesByRow = 2*noPEs/8, arrowRow[noBytesByRow];
 	sprintf(arrowFILEname, "%sp%d.bin", argv[4], noFile);
@@ -67,204 +59,88 @@ int main(int argc, char *argv[]) {
 	int dimFileArrows = getFileSize(farrows);
 	int noArrowRows = getNoArrowRows(dimFileArrows, noPEs);
 	int currentArrowRow = noArrowRows;
-	currentArrowRow = getArrowRow(farrows, currentArrowRow-1, noPEs, arrowRow);
+	//getArrowRowFromRAM();
+	currentArrowRow = getArrowRowFromFILE(farrows, currentArrowRow-1, noPEs, arrowRow);
 	int	dirArrow = getLastDirection(noPEs, arrowRow);
-	currentArrowRow = getArrowRow(farrows, currentArrowRow-1, noPEs, arrowRow);
+	currentArrowRow = getArrowRowFromFILE(farrows, currentArrowRow-1, noPEs, arrowRow);
 	int posArrow = getPosLastArrow(noPEs, arrowRow);
-	int ARROW = getArrow(noPEs, arrowRow, posArrow, dirArrow);
-		printf("dimFileArrows = %d\n",dimFileArrows);
-		printf("noArrowRows = %d\n",noArrowRows);
-		printf("dirArrow = %d\n",dirArrow);
-		printf("posArrow = %d\n",posArrow);
-		printf("ARROW = %d\n",ARROW);
-//
-
-	//////BUSCAR LA POSICIÓN DE LA FLECHA EN LA PRIMERA FILA DE FLECHAS (next row). SOLO DEBE HABER UNA FLECHA
-	/*
+		//printf("dimFileArrows = %d\n",dimFileArrows);
+		//printf("noArrowRows = %d\n",noArrowRows);
+		//printf("dirArrow = %d\n",dirArrow);
+		//printf("posArrow = %d\n",posArrow);
+//	While Loop: Traceback Process
+	int similarity = 0, distance = 0, cntLocal = 0, cnt = 0;
+	int posSeqA = dimSeqA, posSeqB = dimSeqB;
+	int posPacketA = dimPacketSeqA, posPacketB = dimPacketSeqB;
+	int gapA = 0, gapB = 0;
+	int offsetPos, offsetRow;
+	int ARROW = 0;
+	char symA, symB, tempSymA, tempSymB;
+	static char VfnewseqA[dimPackSeq+1], VfnewseqB[dimPackSeq+1];
+	 
+	//dimPacketSeqA, vSeqA, 
+	//dirHV = dirArrow
+	//offsetPos >> posArrow
+	//offsetFila >> currentArrowRow
+	while ( posSeqA > 0 || posSeqB > 0 ) {
+		cntLocal = cnt % dimPackSeq;
+		//load new packet if current packet of Seq or Arrows is already processed
+		if (posPacketA == 0 && posSeqA>0){
+			dimPacketSeqA = getPacketSeq(fseqA, vSeqA, &lastUnreadSymFileSeqA, posFirstEnterFileA);
+			posPacketA = dimPacketSeqA;
+		}
+		if (posPacketB == 0 && posSeqB>0) {
+			dimPacketSeqB = getPacketSeq(fseqB, vSeqB, &lastUnreadSymFileSeqB, posFirstEnterFileB);
+			posPacketB = dimPacketSeqB;
+		}
+		if (currentArrowRow < 0){
+			// Close current arrow file
+			offsetRow = currentArrowRow;
+			fclose(farrows);	noFile--;
+			//	Open next arrow file
+			sprintf(arrowFILEname, "%sp%d.bin", argv[4], noFile);
+			farrows =	fopen(arrowFILEname,"rb");
+				printf("File = %s\n",arrowFILEname);
+			dimFileArrows = getFileSize(farrows);
+			noArrowRows = getNoArrowRows(dimFileArrows, noPEs);
+			//getArrowRowFromRAM();
+			currentArrowRow = currentArrowRow + offsetRow;
+		}
 		
-	//definir variables de destino
-		int posSeqA = dimSeqA;
-		int posSeqB = dimSeqB;
-		int gapA = 0;
-		int gapB = 0;
-		int offsetPos;
-		int offsetFila;
-	
-	int packA, packB;
-		if (dimSeqA % dimPackSeq == 0) packA = dimSeqA / dimPackSeq;
-		else packA = dimSeqA / dimPackSeq + 1;
-		if (dimSeqB % dimPackSeq == 0) packB = dimSeqB / dimPackSeq;
-		else packB = dimSeqB / dimPackSeq + 1;
-		
-		//LEER SEQA Y SEQB POR PAQUETES DE TAMAÑO dimPackSeq. Primer paquete (este) es de residuo
-			fseek(fseqA, posFirstEnterA + 1 + dimPackSeq*(packA-1), SEEK_SET);
-			fread(&VseqA,dimSeqA%dimPackSeq,1,fseqA);
-			printf("packA = %d\n",packA);
-			printf("range packA = %d %d\n", dimPackSeq*(packA-1), (int)ftell(fseqA) - (posFirstEnterA + 1) );
-			packA--;
-			
-			fseek(fseqB, posFirstEnterB + 1 + dimPackSeq*(packB-1), SEEK_SET);
-			fread(&VseqB,dimSeqB%dimPackSeq,1,fseqB);
-			printf("packB = %d\n",packB);
-			printf("range packB = %d %d\n",dimPackSeq*(packB-1), (int)ftell(fseqB) - (posFirstEnterB + 1) );
-			packB--;
-	
-
-
-
-	int cnt = 0, flag = 0;
-	while ( posSeqA != 0 || posSeqB != 0 ) {
-		cntLocal = cnt%dimPackSeq;
-				
-		//////DECODIFICAR LA FLECHA
-		if 		(posSeqA == 0)	decoArrow(&offsetPos, &offsetFila, &dirHV, 2, &posSeqA, &posSeqB, &gapA, &gapB);
-		else if (posSeqB == 0)	decoArrow(&offsetPos, &offsetFila, &dirHV, 1, &posSeqA, &posSeqB, &gapA, &gapB);
-		else	decoArrow(&offsetPos, &offsetFila, &dirHV, ARROW, &posSeqA, &posSeqB, &gapA, &gapB);
-		
-		
-				
-		//////GUARDAR LAS NUEVAS SECUENCIAS EN LOS ARCHIVOS
-		if (cntLocal == 0 && cnt != 0){
-			printf("posSeqA**** = %d\n",posSeqA);
-			printf("posSeqB**** = %d\n",posSeqB);
+		tempSymA = vSeqA[dimPacketSeqA-posPacketA];
+		tempSymB = vSeqB[dimPacketSeqB-posPacketB];
+		//**	get arrow	**
+		currentArrowRow = getArrowRowFromFILE(farrows, currentArrowRow, noPEs, arrowRow);
+			ARROW = getArrow(noPEs, arrowRow, &posArrow, &dirArrow, &currentArrowRow, posSeqA, posSeqB, tempSymA, tempSymB, ARROW);
+		//**	GetAlignSymbols	**
+		GetAlignSymbols(ARROW, &symA, &symB, tempSymA, tempSymB, &posSeqA, &posSeqB, &posPacketA, &posPacketB);
+		VfnewseqA[cntLocal] = symA;
+		VfnewseqB[cntLocal] = symB;
+		//**	GetSimilarityAndDistance	**
+		getSimilarityAndDistance(symA, symB, &similarity, &distance);
+		//**	Save new sequences in files	**
+		if ( (cntLocal == 0 && cnt != 0) || (posSeqA == -1 && posSeqB == -1) ){
 			for (i=0; i<dimPackSeq; i++){
 				fwrite(&VfnewseqA[i], 1, 1, fnewseqA);
 				fwrite(&VfnewseqB[i], 1, 1, fnewseqB);
 			}
-		}else if (posSeqA == 0 && posSeqB == 0){
-			//////Antes o despues del siguiente bloque
-			if (gapA == 0) VfnewseqA[cntLocal] = VseqA[(posSeqA)%dimPackSeq];
-				else VfnewseqA[cntLocal] = '_';
-			if (gapB == 0) VfnewseqB[cntLocal] = VseqB[(posSeqB)%dimPackSeq];
-				else VfnewseqB[cntLocal] = '_';
-
-			for (i=0; i<=cntLocal; i++){
-				fwrite(&VfnewseqA[i], 1, 1, fnewseqA);
-				fwrite(&VfnewseqB[i], 1, 1, fnewseqB);
-			}
-		}
-		
-
-		//LEER SEQA Y SEQB POR PAQUETES DE TAMAÑO dimPackSeq
-		if ((posSeqA) % dimPackSeq == 0) {
-		//if ((dimSeqA - posSeqA) % dimPackSeq == 0) {
-			if (packA != 0){
-				fseek(fseqA, posFirstEnterA + 1 + dimPackSeq*(packA-1), SEEK_SET);
-				fread(&VseqA,dimPackSeq,1,fseqA);
-				printf("packA = %d\n",packA);
-				//printf("range packA = %d %d\n",posFirstEnterA + 1 + dimPackSeq*(packA-1), (int)ftell(fseqA) );
-				printf("range packA = %d %d\n", dimPackSeq*(packA-1), (int)ftell(fseqA) - (posFirstEnterA + 1) );
-				packA--;
-			}
-		}
-
-		if ((posSeqB) % dimPackSeq == 0) {
-		//if ((dimSeqB - posSeqB) % dimPackSeq == 0) {
-			if (packB != 0){
-				fseek(fseqB, posFirstEnterB + 1 + dimPackSeq*(packB-1), SEEK_SET);
-				fread(&VseqB,dimPackSeq,1,fseqB);
-				printf("packB = %d\n",packB);
-				//printf("range packB = %d %d\n",posFirstEnterB + 1 + dimPackSeq*(packB-1), (int)ftell(fseqB) );
-				printf("range packB = %d %d\n",dimPackSeq*(packB-1), (int)ftell(fseqB) - (posFirstEnterB + 1) );
-				packB--;
-			}
-		}
-		
-		
-		//////Antes o despues del siguiente bloque
-		//Agregar a la secuencia alineada el nuevo elemento: nucleotido o gap
-		if (gapA == 0) VfnewseqA[cntLocal] = VseqA[(posSeqA)%dimPackSeq];
-			else VfnewseqA[cntLocal] = '_';
-		if (gapB == 0) VfnewseqB[cntLocal] = VseqB[(posSeqB)%dimPackSeq];
-			else VfnewseqB[cntLocal] = '_';
-		//calcular distancia/similitud segun alineamiento óptimo
-		if (VfnewseqA[cntLocal] == VfnewseqB[cntLocal]) {
-			if (VfnewseqA[cntLocal] != '_') similitud++;
-		}
-		else {
-			similitud--;
-			distancia++;
+			printf("posSeqA**** = %d\n",posSeqA);
+			printf("posSeqB**** = %d\n",posSeqB);
 		}
 
 		
-		//////OBTENER PRÓXIMA FLECHA
-		//currentFILA = ftell(farrows)/(NoRegs*dimUInt); //pos next arrow
-		if (currentFILA < offsetFila){ //&& noFile != 1
-			printf("cnt = %d\n",cnt);
-			printf("posSeqA = %d\n",posSeqA);
-			printf("posSeqB = %d\n",posSeqB);
-			printf("ARROW = %d\n",ARROW);
-			printf("posArrow = %d\n",posArrow);
-			
-			flag = 1;
-			//////GUARDAR FILA A INICIAR EN EL PRÓXIMO ARCHIVO
-				offsetFila = (offsetFila - currentFILA); //más constante
-				printf("offsetFila = %d\n",offsetFila);
-			//////CERRAR EL ARCHIVO ACTUAL Y ABRIR EL SIGUIENTE ARCHIVO
-			fclose(farrows);
-			noFile--;
-			sprintf(arrowFILEname, "%sp%d.bin", argv[4], noFile);
-			farrows =	fopen(arrowFILEname,"rb");
-			printf("File = %s\n",arrowFILEname);
+		//*** Update Sequence Files
 
-			//////MOVER EL CURSOR A LA POSICIÓN DE LA NUEVA FLECHA
-				fseek(farrows, 0, SEEK_END);
-				//currentFILA = ftell(farrows)/(NoRegs*dimUInt); //pos next arrow
-				currentFILA = ftell(farrows)/(NoRegs*dimUInt); //pos next arrow
-				fseek(farrows, 0, SEEK_SET);
-				fread(&bufferArrows,dimUInt,currentFILA*NoRegs,farrows);
-		}
-		
-		
-		//fseek(farrows, -(1+offsetFila)*NoRegs*dimUInt, SEEK_CUR);
-		
-		currentFILA = currentFILA - offsetFila; //pos next arrow
-		fseek(farrows, -(1+offsetFila)*NoRegs*dimUInt, SEEK_CUR);
-		//fread(&fila,dimUInt,NoRegs,farrows); //Lee la fila desde el archivo
-		for (i=0; i<NoRegs; i++)
-			fila[i] = bufferArrows[i + currentFILA*NoRegs];
-		
-		posArrow = posArrow + offsetPos;
-			i = (posArrow) / (8*dimUInt); //cociente, #reg de la fila
-			j = (posArrow) % (8*dimUInt); //residuo, #pos en el reg
-		ARROW = (fila[i]>>j) & 3; //ARROW = 0 @ ERROR, 1 @ UP, 2 @ LEFT, 3 @ DIAGONAL
-			//printf("ARROW = %d, posArrow = %d, dirHV = %d\n",ARROW,posArrow,dirHV);
-		
+
+				
 		
 		cnt++;
 	}
+	printf("length of new sequences = %d\n",cnt);
+	printf("distance = %d, similarity = %d\n", distance, similarity);
 
-	printf("distancia = %d, similitud = %d\n", distancia,similitud);
-
-	
-	//cerrar archivos 
-	fclose(fseqA);
-	fclose(fseqB);
-	fclose(farrows);
-	fclose(fnewseqA);
-	fclose(fnewseqB);
-	fclose(fnewIndexA);
-	fclose(fnewIndexB);
-	
-	clock_t endT = clock();
-	double timeSpent = (double)(beginT - endT)/ CLOCKS_BY_SEC;
-	printf("timeSpent = %f \n", timeSpent );
-	
+	//close files 
+	fclose(fseqA);	fclose(fseqB);	fclose(farrows);
+	fclose(fnewseqA);	fclose(fnewseqB);
 	return 0;
-}
-
-
-
-
-
-
-
-
-	char dataIn1[dimPacket + 1];
-		unsigned int fila[NoRegs];
-		static unsigned int bufferArrows[NooRegs*NoPacketFile*(2*dimPacket)];
-		static char VseqA[dimPackSeq+1], VseqB[dimPackSeq+1];
-		static char VfnewseqA[dimPackSeq+1], VfnewseqB[dimPackSeq+1];
-    int currentFILA; //lastPosMemory, firstPosMemory,
-*/
 }
