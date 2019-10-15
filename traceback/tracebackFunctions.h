@@ -2,13 +2,12 @@
 #include <stdlib.h>
 
 //***	Declaration of Defines
-#define dimPacket		512
-#define NoPacketFile	200
 #define dimPackSeq		10000000
-#define CLOCKS_BY_SEC	800000
 #define DIAG			3
 #define LEFT			2
 #define UP				1
+#define BOTH			0
+#define NOTARROW		0
 
 //***   Declaration of Functions
 int getFileSize(FILE *inputFile);
@@ -30,6 +29,13 @@ int getArrow(int noPEs, int *arrowRow, int *posArrow, int *dirArrow, int *curren
 
 
 //***   Definition of Functions
+int maxAB(int A, int B) {
+	if (A > B) return A; else return B;
+}
+int minAB(int A, int B) {
+	if (A < B) return A; else return B;
+}
+
 int getFileSize(FILE *inputFile) {
     int beginFile, endFile, dimFile;
     fseek(inputFile, 0, SEEK_SET);

@@ -1,6 +1,10 @@
 gcc -o traceback.o traceback.c
+gcc -o forward.o forward.c
+./forward.o 1024 ../sequences-singleLine/NM_001354943.1.fa ../sequences-singleLine/NM_001354944.1.fa ../arrows/arrowsHPS 0
 ./traceback.o 1024 sequences-singleLine/NM_001354943.1.fa sequences-singleLine/NM_001354944.1.fa arrows/arrowsHPS 1 seqAnew.txt seqBnew.txt
-./traceback.o 1024 sequences-singleLine/NZ_KN849241.1.fa sequences-singleLine/NZ_LJXA01000025.1.fa arrows/arrowsHPS 1 seqAnew.txt seqBnew.txt
+
+
+
 
 ./fpga_fft 1024 sequences-singleLine/NM_001354943.1.fa sequences-singleLine/NM_001354944.1.fa arrows/arrowsHPS 0
 
