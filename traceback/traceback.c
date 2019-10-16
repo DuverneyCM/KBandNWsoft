@@ -128,12 +128,6 @@ int main(int argc, char *argv[]) {
 			printf("posSeqB**** = %d\n",posSeqB);
 		}
 
-		
-		//*** Update Sequence Files
-
-
-				
-		
 		cnt++;
 	}
 	printf("length of new sequences = %d\n",cnt);

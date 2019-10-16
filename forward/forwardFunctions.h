@@ -12,6 +12,31 @@ getNoSoCPackets(int dimSeq, int dimFirstPacket, int dimLastPacket, int dimPacket
 	int noPackets=0;
 	return noPackets;
 }
+int getPacketSeqSoC(FILE *inputFile, char *packetSeq, int *lastUnreadSym, int posFirstEnterFile, int offsetBand){
+	int sizePacket = 2*dimPackSeqSocMax;
+	static char bufferPacketSeq[2*dimPackSeqSocMax];
+	//printf("sizePacket = %d\n",sizePacket);
+	int indexPacketSeq=0;
+	int indexStartReadPacket = *lastUnreadSym - sizePacket;
+	if (indexStartReadPacket < posFirstEnterFile){
+		indexStartReadPacket = posFirstEnterFile;
+		sizePacket = *lastUnreadSym - posFirstEnterFile;
+	}
+	fseek(inputFile, indexStartReadPacket, SEEK_SET);
+	fread(bufferPacketSeq,1,sizePacket,inputFile);
+	int indexPacketFile=sizePacket-1;
+	for (indexPacketSeq=0; indexPacketSeq<offsetBand; indexPacketSeq++)
+		packetSeq[indexPacketSeq] = 0;
+	while (indexPacketSeq<(dimPackSeqSocMax) && indexPacketFile>0){
+		if (bufferPacketSeq[indexPacketFile] != '\n'){
+			packetSeq[indexPacketSeq+offsetBand] = bufferPacketSeq[indexPacketFile];
+			indexPacketSeq++;
+		}
+		indexPacketFile--;
+	}
+	*lastUnreadSym = *lastUnreadSym - sizePacket + indexPacketFile;
+	return indexPacketSeq;
+}
 void shiftRegisterRL(int dirHV, int noPEs, int *shRegA, int *shRegB, int codeSymA, int codeSymB){
 	int i;
 	if (dirHV == 0) {
@@ -113,13 +138,12 @@ void compressARROW(int noPEs, int *tempARROW, int *ARROW){
 		ARROW[i/noArrowsByRow] = (ARROW[i/noArrowsByRow]<<2) | tempARROW[i];
 	}
 }
-
-runOneRowNWALinear(int *dirHV, int noPEs){
+runOneRowNWALinear(int *dirHV, int noPEs, int *SeqA, int *SeqB, int *shRegA, int *shRegB, int *H1, int *H2, int *ARROW){
 	int codeSymA, codeSymB;
-	int shRegA[noPEs], shRegB[noPEs], scoreAB[noPEs], validAB[noPEs];
-	int H1[noPEs], H2[noPEs], tempARROW[noPEs];
-	int noRegs = 2*noPEs/(8*sizeof(unsigned int));
-	int ARROW[noRegs];
+	int scoreAB[noPEs], validAB[noPEs], tempARROW[noPEs];
+//	int shRegA[noPEs], shRegB[noPEs], scoreAB[noPEs], validAB[noPEs];
+//	int H1[noPEs], H2[noPEs], tempARROW[noPEs];
+//	int noRegs = 2*noPEs/(8*sizeof(unsigned int));
 	
 	shiftRegisterRL(dirHV, noPEs, shRegA, shRegB, codeSymA, codeSymB);
 	getScoreAB(noPEs, shRegA, shRegB, scoreAB, validAB);
